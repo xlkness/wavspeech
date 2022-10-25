@@ -15,30 +15,31 @@ import vad.webrtcvad_utils as webrtcvad_utils
 import time
 
 def vad_webrtc(path): 
+    vad_frame_dura = 30 # vad算法检测一次的帧持续时长
+    vad_mode = 1 # vad模式，数字越大越严格，最大3
+
     vad = webrtcvad.Vad()
-    vad.set_mode(1)
+    vad.set_mode(vad_mode)
     audio, raw_frames, sample_rate = webrtcvad_utils.read_wave(path)
     if sample_rate not in [8000, 16000]:
         return None, int(float(len(raw_frames)) / float(audio.getsampwidth())), sample_rate , int(audio.getsampwidth()), raw_frames, '采样率目前只支持8000/16000'
 
-    cut_frames = webrtcvad_utils.frame_generator(20, raw_frames, sample_rate, audio.getsampwidth())
+    cut_frames = webrtcvad_utils.frame_generator(vad_frame_dura, raw_frames, sample_rate, audio.getsampwidth())
     cut_frames = list(cut_frames)
-    segments = webrtcvad_utils.vad_collector1(sample_rate, audio.getsampwidth(), 30, 300, vad, cut_frames)
-    # segments = webrtcvad_utils.vad_collector(sample_rate, 10, 300, vad, cut_frames)
+    segments = webrtcvad_utils.vad_collector1(sample_rate, audio.getsampwidth(), vad_frame_dura, 300, vad, cut_frames)
+    # segments = webrtcvad_utils.vad_collector(sample_rate, vad_frame_dura, 300, vad, cut_frames)
     total_dura = float(len(raw_frames))/float(audio.getsampwidth()) / (float(sample_rate)/1000)
 
     speech_points = []
-    # for l in segments:
+    # for i, l in enumerate(segments):
     #     for seg in l:
-    #         print("seg :", seg.offset)
-    #         start_point = seg.offset*seg.section_len
-    #         end_point = start_point+seg.section_len
-    #         # (start_point, end_point) = seg
-    #         print("wrv seg:", start_point/2, end_point/2)
+    #         start_point = seg.offset / 2
+    #         end_point = start_point+seg.section_len/2
     #         start_ms = int(float(start_point)/float(len(raw_frames)) * total_dura)
     #         end_ms = int(float(end_point)/float(len(raw_frames)) * total_dura)
-    #         # print("[{}ms-{}ms] {}:{}".format(start_ms, end_ms, start_point/2, end_point/2))
+    #         print("[{}ms-{}ms] {}:{}".format(start_ms, end_ms, start_point/2, end_point/2))
     #         speech_points.append((int(start_point/audio.getsampwidth()), int(end_point/audio.getsampwidth())))
+    
     for seg in segments:
         (start_point, end_point) = seg
         # (start_point, end_point) = seg
@@ -121,16 +122,16 @@ def handle_file_extract_speech(path):
         if end_point > webrtc_seg_start and end_point < webrtc_seg_end:
             # start_point = webrtc_seg_start
             # 修正webrtcvad算法找到的人声区间，与机器学习保持一致，webrtcvad算法找到的后段比较长
-            # tmp_speech_sections1 = []
-            # j = 0
-            # while j < len(speech_sections1):
-            #     if i == j:
-            #         tmp_speech_sections1.append((speech_sections1[j][0], end_point))
-            #     else:
-            #         tmp_speech_sections1.append(speech_sections1[j])
-            #     j += 1
-            # speech_sections1 = tmp_speech_sections1
-            end_point = webrtc_seg_end
+            tmp_speech_sections1 = []
+            j = 0
+            while j < len(speech_sections1):
+                if i == j:
+                    tmp_speech_sections1.append((speech_sections1[j][0], end_point))
+                else:
+                    tmp_speech_sections1.append(speech_sections1[j])
+                j += 1
+            speech_sections1 = tmp_speech_sections1
+            # end_point = webrtc_seg_end
             break
         i += 1
         
@@ -258,7 +259,7 @@ def handle_file(path, outpath):
         print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
         return
 
-    webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
+    # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
 
     # 计算人声段之外的噪音段
     noise_sections = handle_file_extract_noise_point(start_point, end_point, active_voicd_sections)
@@ -266,7 +267,7 @@ def handle_file(path, outpath):
     # 去掉噪音段
     new_raw_frames, new_start_point, new_end_point = handle_file_denoise(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, noise_sections)
 
-    webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-1"+ext, bytes(new_raw_frames), sample_rate, sample_width)
+    # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-1"+ext, bytes(new_raw_frames), sample_rate, sample_width)
 
     print("原始采样点数：", sample_points)
     print("去掉噪音后采样点数：", len(new_raw_frames)/sample_width)
@@ -280,7 +281,7 @@ def handle_file(path, outpath):
         print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
         return
 
-    webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
+    # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
     print("填充后采样点数：", len(new_raw_frames)/sample_width)
 
     new_raw_frames, new_start_point, new_end_point = \
@@ -328,4 +329,4 @@ if __name__ == '__main__':
     wav_files=file_name(path) #获取文件夹内的所有语音文件
     for filename in wav_files:
         handle_file(filename, outpath)
-        break
+        # break
