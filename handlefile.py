@@ -13,6 +13,7 @@ import vad.silerovad_utils as silerovad_utils
 import vad.silerovad as silerovad
 import vad.webrtcvad_utils as webrtcvad_utils
 import time
+from wavvad import log
 
 def vad_webrtc(path): 
     vad_frame_dura = 30 # vad算法检测一次的帧持续时长
@@ -43,7 +44,7 @@ def vad_webrtc(path):
     for seg in segments:
         (start_point, end_point) = seg
         # (start_point, end_point) = seg
-        print("wrv seg:", start_point/2, end_point/2)
+        # log.debug("wrv seg:", start_point/2, end_point/2)
         start_ms = int(float(start_point)/float(len(raw_frames)) * total_dura)
         end_ms = int(float(end_point)/float(len(raw_frames)) * total_dura)
         # print("[{}ms-{}ms] {}:{}".format(start_ms, end_ms, start_point/2, end_point/2))
@@ -55,10 +56,11 @@ def vad_webrtc(path):
 def vad_silero(path):
     USE_ONNX = False
 
+    torchaudio.set_audio_backend("soundfile")
     model, utils = torch.hub.load(repo_or_dir='vad',
                               model='silero_vad',
                               source='local',
-                              force_reload=True,
+                            #   force_reload=True,
                               onnx=USE_ONNX)
     (get_speech_timestamps,
     save_audio,
@@ -73,7 +75,7 @@ def vad_silero(path):
 
     speech_points = []
     for seg in speech_timestamps:
-        print("speech seg:", seg['start'], seg['end'])
+        # log.debug("speech seg:", seg['start'], seg['end'])
         speech_points.append((seg['start'], seg['end']))
     
     return speech_points
@@ -83,6 +85,9 @@ def handle_file_extract_speech(path):
     # 走webrtc算法提取出有效声音 [(point1, point2), (point3, point4)]
     speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = vad_webrtc(path)
 
+    logRecord = handleLogRecord(path, raw_frames, sample_points, sample_rate, sample_width)
+    logRecord.addProcessVad(processWebrtcVadLogRecord(speech_sections1))
+    
     start_point = 0
     end_point = 0
     start_ts = 0
@@ -90,24 +95,27 @@ def handle_file_extract_speech(path):
     return_tuple = (raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, start_ts, end_ts)
 
     if err_msg != '':
-        return return_tuple, None, err_msg
+        return logRecord, err_msg
 
     # 走silero机器学习计算有效人声段 [(point1, point2)]
     speech_sections2 = vad_silero(path)
 
     if len(speech_sections2) <= 0:
         err_msg = '机器学习算法没有提取到有效人声'
-        return return_tuple, None, err_msg
+        return logRecord, err_msg
 
     if len(speech_sections1) <= 0:
         err_msg = '机器学习算法提取到有效人声，但是webrtc vad算法没有检测到有效声音端点'
-        return return_tuple, None, err_msg
+        return logRecord, err_msg
 
     # 查找到silero的开始点如果处于webrtcvad的某个有效声音段，则认为webrtcvad提取的这整个段都是人声
     # 因为silero提取有效声段在临界点有一点缺失，重新用webrtcvad提取的段覆盖初始或者结束
     start_point = speech_sections2[0][0]
     end_point = speech_sections2[-1][1]
     
+    origin_start_point = start_point
+    origin_end_point = end_point
+
     i = 0
     while i < len(speech_sections1):
         (webrtc_seg_start, webrtc_seg_end) = speech_sections1[i]
@@ -134,18 +142,21 @@ def handle_file_extract_speech(path):
             # end_point = webrtc_seg_end
             break
         i += 1
-        
+
+    processExtractSpeech = processSilerovadSpeechLogRecord(speech_sections2, origin_start_point, origin_end_point, start_point, end_point)
+    logRecord.addExtractSpeech(processExtractSpeech)
+
     dura_ms = float(sample_points)/float(sample_rate/1000)
 
     start_ts = int(float(start_point)/float(sample_points) * dura_ms)
     end_ts = int(float(end_point)/float(sample_points) * dura_ms)
 
-    print("silero speech:", start_point, end_point)
+    # print("silero speech:", start_point, end_point)
 
     return_tuple = (raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, start_ts, end_ts)
     # print("speech dura:{}ms - {}ms".format(start_ts, end_ts))
 
-    return return_tuple, speech_sections1, ''
+    return logRecord, ''
 
 # 标记噪声段
 def handle_file_extract_noise_point(start_point, end_point, speech_sections1):
@@ -246,6 +257,36 @@ def handle_file_cut_more_mute(raw_frames, sample_points, sample_rate, sample_wid
 
     return raw_frames, start_point, end_point
 
+class processWebrtcVadLogRecord:
+    voicedlist = []
+    def __init__(self, voicedlist):
+        self.voicedlist = voicedlist
+
+class processSilerovadSpeechLogRecord:
+    speechlist = []
+    origin_start_point = 0
+    origin_end_point = 0
+    correct_start_point = 0
+    correct_end_point = 0
+    def __init__(self, speechlist, origin_start_point, origin_end_point, correct_start_point, correct_end_point):
+        self.speechlist = speechlist
+        self.origin_start_point = origin_start_point
+        self.origin_end_point = origin_end_point
+        self.correct_start_point = correct_start_point
+        self.correct_end_point = correct_end_point
+
+class handleLogRecord:
+    def __init__(self, name, raw_frames, sample_points, sample_rate, sample_width):
+        self.name = name
+        self.raw_frames = raw_frames
+        self.sample_points = sample_points
+        self.sample_rate = sample_rate
+        self.sample_width = sample_width
+    def addProcessVad(self, processVad):
+        self.processVad = processVad
+    def addExtractSpeech(self, processExtractSpeech):
+        self.processExtractSpeech = processExtractSpeech
+
 # 开始处理一个文件
 def handle_file(path, outpath):
 
@@ -254,7 +295,10 @@ def handle_file(path, outpath):
     start_time = time.time()
     
     # 计算有效人声段
-    (raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
+    logRecord, err_msg = handle_file_extract_speech(path)
+    raw_frames, sample_points, sample_rate, sample_width = logRecord.raw_frames, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width
+    start_point, end_point = logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point
+    # (start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
     if err_msg != '':
         print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
         return
@@ -262,17 +306,17 @@ def handle_file(path, outpath):
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
 
     # 计算人声段之外的噪音段
-    noise_sections = handle_file_extract_noise_point(start_point, end_point, active_voicd_sections)
+    noise_sections = handle_file_extract_noise_point(start_point, end_point, logRecord.processVad.voicedlist)
 
     # 去掉噪音段
     new_raw_frames, new_start_point, new_end_point = handle_file_denoise(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, noise_sections)
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-1"+ext, bytes(new_raw_frames), sample_rate, sample_width)
 
-    print("原始采样点数：", sample_points)
-    print("去掉噪音后采样点数：", len(new_raw_frames)/sample_width)
-    print("新人声起点：", new_start_point)
-    print("新人声终点：", new_end_point)
+    # print("原始采样点数：", sample_points)
+    # print("去掉噪音后采样点数：", len(new_raw_frames)/sample_width)
+    # print("新人声起点：", new_start_point)
+    # print("新人声终点：", new_end_point)
 
     # 人声段之外填充静音段
     new_raw_frames, new_start_point, new_end_point, err_msg = \
@@ -282,13 +326,13 @@ def handle_file(path, outpath):
         return
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
-    print("填充后采样点数：", len(new_raw_frames)/sample_width)
+    # print("填充后采样点数：", len(new_raw_frames)/sample_width)
 
     new_raw_frames, new_start_point, new_end_point = \
         handle_file_cut_more_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
 
-    print("保留0.6秒人声段：", new_start_point, new_end_point)
-    print("保留0.6秒静音后采样点数：", len(new_raw_frames)/sample_width)
+    # print("保留0.6秒人声段：", new_start_point, new_end_point)
+    # print("保留0.6秒静音后采样点数：", len(new_raw_frames)/sample_width)
    
     # frame_duration_ms = 30
     # n = int(sample_rate * (frame_duration_ms / 1000.0) * sample_width)
@@ -296,6 +340,8 @@ def handle_file(path, outpath):
     # duration = (float(n) / sample_rate) / float(sample_width)
 
     webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise"+ext, bytes(new_raw_frames), sample_rate, sample_width)
+
+    log.info('[%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕', logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])
     #     # print("offset:", offset, offset+n)
@@ -307,26 +353,4 @@ def handle_file(path, outpath):
 #         len(noise_sections), record_noise_points, noise_dura, need_pre_full_points, need_post_full_points, \
 #             new_sample_points, new_dura, end_time - start_time))
 
-    
-#获取输入文件夹内的所有wav文件，并返回文件名全称列表
-def file_name(file_dir):
-    L = []
-    for root, dirs, files in os.walk(file_dir):
-        for file in files:
-            if os.path.splitext(file)[1].lower() == '.wav':
-                filename=os.path.join(root, file)
-                # print(get_label(filename))
-                L.append(filename)
-        return L  
-
-if __name__ == '__main__':
-    path = 'wav/bad/344048.wav'
-    path = 'wav/good/1336482.wav'
-    path = 'wav/normal/335305.wav'
-    path = 'wav/normal'
-    outpath = 'output'
-
-    wav_files=file_name(path) #获取文件夹内的所有语音文件
-    for filename in wav_files:
-        handle_file(filename, outpath)
-        # break
+ 
