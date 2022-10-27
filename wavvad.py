@@ -30,6 +30,12 @@ log = logging.getLogger('null')
 fix_src_path = 'wav'
 path = os.path.join(rootPath, fix_src_path)
 outpath = os.path.join(rootPath, 'output')
+try:
+    os.makedirs(outpath)
+except:
+    pass
+
+log_record = open(os.path.join(outpath, 'process.log'), 'w')
 skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
 
 def init():
@@ -43,12 +49,13 @@ def init():
 exitFlag = False
 
 class handleFileThread(threading.Thread):
-    def __init__(self, queueLock, taskQueue, srcpath, outpath):
+    def __init__(self, queueLock, taskQueue, srcpath, outpath, count):
         threading.Thread.__init__(self)
         self.queueLock = queueLock
         self.taskQueue = taskQueue
         self.srcpath = srcpath
         self.outpath = outpath
+        self.count = count
     def run(self):
         # log.debug("thread running...")
         self.handle_file()
@@ -56,9 +63,9 @@ class handleFileThread(threading.Thread):
         while not exitFlag:
             self.queueLock.acquire()
             if not self.taskQueue.empty():
-                data = self.taskQueue.get()
+                (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                handlefile.handle_file(data, self.srcpath, self.outpath)
+                handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath)
             else:
                 self.queueLock.release()
                 # log.info('线程任务处理完毕，退出')
@@ -97,13 +104,15 @@ if __name__ == '__main__':
     taskQueue = queue.Queue(len(wav_files))
 
     # 填充并行任务
+    i = 0
     for filename in wav_files:
-        taskQueue.put(filename)
+        i += 1
+        taskQueue.put((i, filename))
         # log.debug("file name:%s", filename)
 
     allThreads = []
     for i in range(threadsNum):
-        thread = handleFileThread(queueLock, taskQueue, path, outpath)
+        thread = handleFileThread(queueLock, taskQueue, path, outpath, len(wav_files))
         thread.start()
         allThreads.append(thread)
 

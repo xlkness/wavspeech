@@ -17,7 +17,12 @@ import vad.silerovad_utils as silerovad_utils
 import vad.silerovad as silerovad
 import vad.webrtcvad_utils as webrtcvad_utils
 import time
-from wavvad import log, skip_record
+from wavvad import log, skip_record, log_record
+import copy
+
+model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+    # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
+(get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
 def vad_webrtc(path): 
     vad_frame_dura = 30 # vad算法检测一次的帧持续时长
@@ -60,18 +65,11 @@ def vad_webrtc(path):
 def vad_silero(path):
     USE_ONNX = False
 
-    model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=USE_ONNX)
-    # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
-    (get_speech_timestamps,
-    save_audio,
-    read_audio,
-    VADIterator,
-    collect_chunks) = utils
-    
     wav, raw_frames, sample_rate = read_audio(path)
 
     # get speech timestamps from full audio file
-    speech_timestamps = get_speech_timestamps(raw_frames, model, sampling_rate=sample_rate)
+    model1 = copy.deepcopy(model)
+    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100, window_size_samples=int(1024/(16000/sample_rate)))
 
     speech_points = []
     for seg in speech_timestamps:
@@ -288,7 +286,7 @@ class handleLogRecord:
         self.processExtractSpeech = processExtractSpeech
 
 # 开始处理一个文件
-def handle_file(path, srcpath, outpath):
+def handle_file(no, count, path, srcpath, outpath):
     (filename, ext) = os.path.splitext(os.path.basename(path))
 
     start_time = time.time()
@@ -297,15 +295,17 @@ def handle_file(path, srcpath, outpath):
     logRecord, err_msg = handle_file_extract_speech(path)
     raw_frames, sample_points, sample_rate, sample_width = logRecord.raw_frames, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width
     if err_msg != '':
-        print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
-        skip_record.write(path + '\n')
+        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
+        print(msg)
+        skip_record.write(path + '：' + msg + '\n')
         return
 
     start_point, end_point = logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point
     # (start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
     if err_msg != '':
-        print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
-        skip_record.write(path + '\n')
+        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
+        print(msg)
+        skip_record.write(path + '：' + msg + '\n')
         return
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
@@ -327,8 +327,9 @@ def handle_file(path, srcpath, outpath):
     new_raw_frames, new_start_point, new_end_point, err_msg = \
         handle_file_full_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
     if err_msg != '':
-        print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
-        skip_record.write(path + '\n')
+        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
+        print(msg)
+        skip_record.write(path + '：' + msg + '\n')
         return
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
@@ -359,7 +360,13 @@ def handle_file(path, srcpath, outpath):
         pass
     webrtcvad_utils.write_wave(fullOutPath, bytes(new_raw_frames), sample_rate, sample_width)
 
-    log.info('[%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕，输出到：%s', logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, fullOutPath)
+    noiseSegs = ''
+    for noiseSeg in logRecord.processVad.voicedlist:
+        noiseSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
+
+    # log.debug('[{}] 噪声检测段：{}'.format(logRecord.name, noiseSegs))
+    # log.debug('[{}] 人声段：{}-{}'.format(logRecord.name, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point))
+    log.info('[%d/%d][%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕，输出到：%s', no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, fullOutPath)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])
     #     # print("offset:", offset, offset+n)
