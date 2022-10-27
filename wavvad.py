@@ -22,9 +22,15 @@ def files_name(file_dir):
                 filename=os.path.join(root, file)
                 # print(get_label(filename))
                 L.append(filename)
-        return L  
+        for dir in dirs:
+            L = L + (files_name(dir))
+    return L  
 
 log = logging.getLogger('null')
+fix_src_path = 'wav'
+path = os.path.join(rootPath, fix_src_path)
+outpath = os.path.join(rootPath, 'output')
+skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
 
 def init():
     level = logging.DEBUG # DEBUG/INFO/WARNING/ERROR/CRITICAL
@@ -37,10 +43,11 @@ def init():
 exitFlag = False
 
 class handleFileThread(threading.Thread):
-    def __init__(self, queueLock, taskQueue, outpath):
+    def __init__(self, queueLock, taskQueue, srcpath, outpath):
         threading.Thread.__init__(self)
         self.queueLock = queueLock
         self.taskQueue = taskQueue
+        self.srcpath = srcpath
         self.outpath = outpath
     def run(self):
         # log.debug("thread running...")
@@ -51,7 +58,7 @@ class handleFileThread(threading.Thread):
             if not self.taskQueue.empty():
                 data = self.taskQueue.get()
                 self.queueLock.release()
-                handlefile.handle_file(data, self.outpath)
+                handlefile.handle_file(data, self.srcpath, self.outpath)
             else:
                 self.queueLock.release()
                 # log.info('线程任务处理完毕，退出')
@@ -62,12 +69,11 @@ class handleFileThread(threading.Thread):
 # pipreqs . --encoding=utf8 --force
 if __name__ == '__main__':
     init()
-    path = 'wav/bad/344048.wav'
-    path = 'wav/good/1336482.wav'
-    path = 'wav/normal/335305.wav'
-    path = 'wav/normal'
-    # path = os.path.join(rootPath, 'wav')
-    outpath = os.path.join(rootPath, 'output')
+    # path = 'wav/bad/344048.wav'
+    # path = 'wav/good/1336482.wav'
+    # path = 'wav/normal/335305.wav'
+    # path = 'wav/normal'
+    
 
     startTime = time.time()
 
@@ -85,6 +91,7 @@ if __name__ == '__main__':
     if len(wav_files) > cpu_count() * 2:
         log.info("文件数量{}过多，开启两倍cpu核心{}线程加速".format(len(wav_files), cpu_count()*2))
         threadsNum = cpu_count()*2
+        # threadsNum = 1
   
     queueLock = threading.Lock()
     taskQueue = queue.Queue(len(wav_files))
@@ -96,7 +103,7 @@ if __name__ == '__main__':
 
     allThreads = []
     for i in range(threadsNum):
-        thread = handleFileThread(queueLock, taskQueue, outpath)
+        thread = handleFileThread(queueLock, taskQueue, path, outpath)
         thread.start()
         allThreads.append(thread)
 

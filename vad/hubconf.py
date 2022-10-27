@@ -14,15 +14,22 @@ from silerovad_utils import (init_jit_model,
                        Validator,
                        OnnxWrapper)
 import os, sys
+from pathlib import Path
+import time
 
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
 
 def silero_vad(onnx=False, force_onnx_cpu=False):
-    hub_dir = torch.hub.get_dir()
+    # hub_dir = torch.hub.get_dir()
     if onnx:
         model = OnnxWrapper(f'{rootPath}/silero_resources/silero_vad.onnx', force_onnx_cpu)
     else:
-        model = init_jit_model(model_path=f'{rootPath}/silero_resources/silero_vad.jit')
+        jitPath = os.path.join(os.path.join(rootPath, 'silero_resources'), 'silero_vad.jit')
+        if not Path(jitPath).is_file():
+            print("没有找到jit文件，请将silero_vad.jit放置在当前silero_resources目录下")
+            exit(1)
+        # model = init_jit_model(model_path=f'{hub_dir}/snakers4_silero-vad_master/files/silero_vad.jit')
+        model = init_jit_model(model_path=jitPath)
     utils = (get_speech_timestamps,
              save_audio,
              read_audio,

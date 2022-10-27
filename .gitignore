@@ -1,2 +1,5 @@
 wav
 output
+build
+dist
+__pychache__

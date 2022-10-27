@@ -9,11 +9,15 @@ import webrtcvad
 from halo import Halo
 import torch
 import torchaudio
+
+print('torch audio backend:', torchaudio.get_audio_backend())
+torchaudio.set_audio_backend("soundfile")
+
 import vad.silerovad_utils as silerovad_utils
 import vad.silerovad as silerovad
 import vad.webrtcvad_utils as webrtcvad_utils
 import time
-from wavvad import log
+from wavvad import log, skip_record
 
 def vad_webrtc(path): 
     vad_frame_dura = 30 # vad算法检测一次的帧持续时长
@@ -56,12 +60,8 @@ def vad_webrtc(path):
 def vad_silero(path):
     USE_ONNX = False
 
-    torchaudio.set_audio_backend("soundfile")
-    model, utils = torch.hub.load(repo_or_dir='vad',
-                              model='silero_vad',
-                              source='local',
-                            #   force_reload=True,
-                              onnx=USE_ONNX)
+    model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=USE_ONNX)
+    # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
     (get_speech_timestamps,
     save_audio,
     read_audio,
@@ -288,8 +288,7 @@ class handleLogRecord:
         self.processExtractSpeech = processExtractSpeech
 
 # 开始处理一个文件
-def handle_file(path, outpath):
-
+def handle_file(path, srcpath, outpath):
     (filename, ext) = os.path.splitext(os.path.basename(path))
 
     start_time = time.time()
@@ -297,10 +296,16 @@ def handle_file(path, outpath):
     # 计算有效人声段
     logRecord, err_msg = handle_file_extract_speech(path)
     raw_frames, sample_points, sample_rate, sample_width = logRecord.raw_frames, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width
+    if err_msg != '':
+        print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
+        skip_record.write(path + '\n')
+        return
+
     start_point, end_point = logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point
     # (start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
     if err_msg != '':
         print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
+        skip_record.write(path + '\n')
         return
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
@@ -323,6 +328,7 @@ def handle_file(path, outpath):
         handle_file_full_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
     if err_msg != '':
         print("[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg))
+        skip_record.write(path + '\n')
         return
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
@@ -339,9 +345,21 @@ def handle_file(path, outpath):
     # offset = 0
     # duration = (float(n) / sample_rate) / float(sample_width)
 
-    webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise"+ext, bytes(new_raw_frames), sample_rate, sample_width)
+    # outFileName = filename+ext
+    relative_path_name = os.path.relpath(path, srcpath)
+    fullOutPath = os.path.join(outpath, relative_path_name)
+    # print("原始文件：", path)
+    # print("源目录：", srcpath)
+    # print("输出目录：", outpath)
+    # print("相对路径：", relative_path_name)
+    # print("输出文件：", fullOutPath)
+    try:
+        os.makedirs(os.path.dirname(fullOutPath))
+    except OSError:
+        pass
+    webrtcvad_utils.write_wave(fullOutPath, bytes(new_raw_frames), sample_rate, sample_width)
 
-    log.info('[%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕', logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width)
+    log.info('[%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕，输出到：%s', logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, fullOutPath)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])
     #     # print("offset:", offset, offset+n)
