@@ -2,9 +2,6 @@ wav
 output
 build
 dist
-__pychache__
-__pychache__/
-*__pychache__
-*__pychache__/*
-__pycache__/*
+__pycache__
 dist.rar
+skip

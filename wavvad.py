@@ -30,8 +30,14 @@ def files_name(file_dir):
 fix_src_path = 'wav'
 path = os.path.join(rootPath, fix_src_path)
 outpath = os.path.join(rootPath, 'output')
+skippath = os.path.join(rootPath, 'skip')
 try:
     os.makedirs(outpath)
+except:
+    pass
+
+try:
+    os.makedirs(skippath)
 except:
     pass
 
@@ -75,7 +81,18 @@ class handleFileThread(threading.Thread):
             if not self.taskQueue.empty():
                 (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath)
+                err_msg = handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath)
+                if err_msg != '':
+                    # 另存文件
+                    f = open(file, 'rb')
+                    content = f.read()
+                    f.close()
+                    baseName = os.path.basename(file)
+                    fullOutPath = os.path.join(skippath, baseName)
+                    f = open(fullOutPath, 'wb+')
+                    f.write(content)
+                    f.close()
+                    log.info('转存跳过文件[{}]成功'.format(fullOutPath))
             else:
                 self.queueLock.release()
                 # log.info('线程任务处理完毕，退出')

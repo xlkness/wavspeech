@@ -300,7 +300,7 @@ def handle_file(no, count, path, srcpath, outpath):
         msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
         print(msg)
         skip_record.write(path + '：' + msg + '\n')
-        return
+        return msg
 
     start_point, end_point = logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point
     # (start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
@@ -308,7 +308,7 @@ def handle_file(no, count, path, srcpath, outpath):
         msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
         print(msg)
         skip_record.write(path + '：' + msg + '\n')
-        return
+        return msg
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
 
@@ -332,7 +332,7 @@ def handle_file(no, count, path, srcpath, outpath):
         msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
         print(msg)
         skip_record.write(path + '：' + msg + '\n')
-        return
+        return msg
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
     # print("填充后采样点数：", len(new_raw_frames)/sample_width)
@@ -384,5 +384,7 @@ def handle_file(no, count, path, srcpath, outpath):
 #       format(path, sample_points, sample_rate, sample_width, start_ts, end_ts, \
 #         len(noise_sections), record_noise_points, noise_dura, need_pre_full_points, need_post_full_points, \
 #             new_sample_points, new_dura, end_time - start_time))
+
+    return ''
 
  
