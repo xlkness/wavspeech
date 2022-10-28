@@ -44,11 +44,7 @@ except:
 # log_record = open(os.path.join(outpath, 'process.log'), 'w')
 skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
 
-class Log():
-    def __init__(self):
-        pass
-
-def __init__():
+def init():
     level = logging.DEBUG # DEBUG/INFO/WARNING/ERROR/CRITICAL
     format='[%(levelname)s] %(asctime)s %(filename)s.%(funcName)s:%(lineno)d | %(message)s'
     format='[%(levelname)s][%(asctime)s][%(filename)s.%(funcName)s:%(lineno)d] %(message)s'
@@ -56,12 +52,12 @@ def __init__():
     logfile = os.path.join(outpath, 'process.log')
     handler = logging.FileHandler(logfile, 'w', encoding="UTF-8")
     logging.basicConfig(level=level, format=format, datefmt=datefmt)
+
     global log
     log = logging.getLogger("logger1")
     log.addHandler(handler)
     global_val.__init(log)
     
-
 exitFlag = False
 
 class handleFileThread(threading.Thread):
@@ -102,12 +98,7 @@ class handleFileThread(threading.Thread):
 # appdata\roaming\python\python36\site-packages\PyInstaller\__main__.py -F wavvad.spec -n wavvad
 # pipreqs . --encoding=utf8 --force
 if __name__ == '__main__':
-    __init__()
-    # path = 'wav/bad/344048.wav'
-    # path = 'wav/good/1336482.wav'
-    # path = 'wav/normal/335305.wav'
-    # path = 'wav/normal'
-    
+    init()
 
     startTime = time.time()
 

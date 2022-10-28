@@ -10,7 +10,6 @@ from halo import Halo
 import torch
 import torchaudio
 
-print('torch audio backend:', torchaudio.get_audio_backend())
 torchaudio.set_audio_backend("soundfile")
 
 import vad.silerovad_utils as silerovad_utils
