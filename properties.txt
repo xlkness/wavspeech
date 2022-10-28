@@ -1,3 +1,5 @@
 [default]
 retain_dura=650
+; 使用webrtc的检测段修正机器学习人声段，例如webrtc检测到声音段[100,1000]，
+; 机器学习是[200,800]，则最终人声段会被修正为[100,800]（修正起点，不修正终点）
 webrtc_correct_speech=True

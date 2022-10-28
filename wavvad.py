@@ -108,8 +108,11 @@ if __name__ == '__main__':
     configFilePath = os.path.join(rootPath, configFile
 
     if Path(configFilePath).is_file():
-        cf = configparser.ConfigParser()
-        cf.read(configFilePath)
+        cf = configparser.ConfigParser(allow_no_value=True)
+        cf.add_section('default')
+        cf.set('default', 'retain_dura', str(retainDura))
+        cf.set('default', 'webrtc_correct_speech', str(webrtcCorrectSpeech))
+        cf.read(configFilePath, encoding='utf=8')
         kvs = dict(cf.items("default"))
         dura = int(kvs['retain_dura'])
         isCorrect = bool(kvs['webrtc_correct_speech'])
