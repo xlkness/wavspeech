@@ -22,12 +22,12 @@ rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
 def silero_vad(onnx=False, force_onnx_cpu=False):
     # hub_dir = torch.hub.get_dir()
     if onnx:
-        model = OnnxWrapper(f'{rootPath}/silero_resources/silero_vad.onnx', force_onnx_cpu)
+        model = OnnxWrapper(f'{rootPath}/vad/silero_vad.onnx', force_onnx_cpu)
     else:
-        jitPath = os.path.join(os.path.join(rootPath, 'silero_resources'), 'silero_vad.jit')
+        jitPath = os.path.join(os.path.join(rootPath, 'vad'), 'silero_vad.jit')
         if not Path(jitPath).is_file():
-            print("没有找到jit文件，请将silero_vad.jit放置在当前silero_resources目录下")
-            exit(1)
+            print("没有找到jit文件，请将silero_vad.jit放置在当前vad目录下")
+            os._exit(1)
         # model = init_jit_model(model_path=f'{hub_dir}/snakers4_silero-vad_master/files/silero_vad.jit')
         model = init_jit_model(model_path=jitPath)
     utils = (get_speech_timestamps,

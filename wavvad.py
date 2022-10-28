@@ -53,8 +53,6 @@ def __init__():
     global log
     log = logging.getLogger("logger1")
     log.addHandler(handler)
-    logging.debug('test logging')
-    log.debug('test log')
     global_val.__init(log)
     
 
@@ -99,7 +97,7 @@ if __name__ == '__main__':
     wav_files=files_name(path) #获取文件夹内的所有语音文件
     if len(wav_files) <= 0:
         log.warn('目录%s下没有找到音频文件', path)
-        exit(1)
+        os._exit(1)
     
     if not Path(outpath).is_dir():
         os.mkdir(outpath)
@@ -143,4 +141,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         log.info("接收到停止信号，退出程序")
         exitFlag = True
-        exit(1)
+        os._exit(1)
