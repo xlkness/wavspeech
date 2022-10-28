@@ -8,6 +8,7 @@ import threading
 import signal
 from pathlib import Path
 import global_val
+import configparser as configparser
 
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
@@ -59,6 +60,11 @@ def init():
     global_val.__init(log)
     
 exitFlag = False
+retainDura = 650 # 除人声段外，前后保留的静音段时长（ms）
+
+# 是否使用webrtc检查出来的段修正机器学习得到的人声段，例如webrtc检测到100-1000为声音段，
+# 机器学习是200-800，则最后人声会被修正为100-800（修正前一部分，保留后一部分，测试到机器学习在前段有异常，后段比webrtc效果好些）
+webrtcCorrectSpeech = True
 
 class handleFileThread(threading.Thread):
     def __init__(self, queueLock, taskQueue, srcpath, outpath, count):
@@ -77,7 +83,7 @@ class handleFileThread(threading.Thread):
             if not self.taskQueue.empty():
                 (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                err_msg = handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath)
+                err_msg = handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath, retainDura, webrtcCorrectSpeech)
                 if err_msg != '':
                     # 另存文件
                     f = open(file, 'rb')
@@ -98,7 +104,21 @@ class handleFileThread(threading.Thread):
 # appdata\roaming\python\python36\site-packages\PyInstaller\__main__.py -F wavvad.spec -n wavvad
 # pipreqs . --encoding=utf8 --force
 if __name__ == '__main__':
+    configFile = 'properties.txt'
+    configFilePath = os.path.join(rootPath, configFile
+
+    if Path(configFilePath).is_file():
+        cf = configparser.ConfigParser()
+        cf.read(configFilePath)
+        kvs = dict(cf.items("default"))
+        dura = int(kvs['retain_dura'])
+        isCorrect = bool(kvs['webrtc_correct_speech'])
+        retainDura = dura
+        webrtcCorrectSpeech = isCorrect
+
     init()
+
+    
 
     startTime = time.time()
 

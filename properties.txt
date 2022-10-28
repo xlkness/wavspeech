@@ -1,0 +1,3 @@
+[default]
+retain_dura=650
+webrtc_correct_speech=True

@@ -245,8 +245,8 @@ def handle_file_full_mute(raw_frames, sample_points, sample_rate, sample_width, 
     return raw_frames, start_point+full_points, end_point+full_points, ''
 
 # 处理人声段前后多余的静音段，保留xx毫秒
-def handle_file_cut_more_mute(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point):
-    keep_mute_ms = 650
+def handle_file_cut_more_mute(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, retainDura):
+    keep_mute_ms = retainDura
     keep_mute_points = sample_rate/1000.0*keep_mute_ms
     raw_frames = raw_frames[int((start_point-keep_mute_points)*sample_width):]
     end_point = end_point - (start_point-keep_mute_points)
@@ -287,7 +287,7 @@ class handleLogRecord:
         self.processExtractSpeech = processExtractSpeech
 
 # 开始处理一个文件
-def handle_file(no, count, path, srcpath, outpath):
+def handle_file(no, count, path, srcpath, outpath, retainDura, webrtcCorrectSpeech):
     (filename, ext) = os.path.splitext(os.path.basename(path))
 
     start_time = time.time()
@@ -337,7 +337,7 @@ def handle_file(no, count, path, srcpath, outpath):
     # print("填充后采样点数：", len(new_raw_frames)/sample_width)
 
     new_raw_frames, new_start_point, new_end_point = \
-        handle_file_cut_more_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
+        handle_file_cut_more_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point, retainDura)
 
     # print("保留0.6秒人声段：", new_start_point, new_end_point)
     # print("保留0.6秒静音后采样点数：", len(new_raw_frames)/sample_width)
