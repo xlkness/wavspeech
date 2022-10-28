@@ -17,7 +17,8 @@ import vad.silerovad_utils as silerovad_utils
 import vad.silerovad as silerovad
 import vad.webrtcvad_utils as webrtcvad_utils
 import time
-from wavvad import log, skip_record, log_record
+from wavvad import  skip_record 
+from global_val import log
 import copy
 
 model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
@@ -25,8 +26,8 @@ model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local
 (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
 
 def vad_webrtc(path): 
-    vad_frame_dura = 30 # vad算法检测一次的帧持续时长
-    vad_mode = 1 # vad模式，数字越大越严格，最大3
+    vad_frame_dura = 20 # vad算法检测一次的帧持续时长
+    vad_mode = 0 # vad模式，数字越大越严格，最大3
 
     vad = webrtcvad.Vad()
     vad.set_mode(vad_mode)
@@ -133,6 +134,7 @@ def handle_file_extract_speech(path):
             while j < len(speech_sections1):
                 if i == j:
                     tmp_speech_sections1.append((speech_sections1[j][0], end_point))
+                    tmp_speech_sections1.append((end_point+1, webrtc_seg_end))
                 else:
                     tmp_speech_sections1.append(speech_sections1[j])
                 j += 1
@@ -365,8 +367,13 @@ def handle_file(no, count, path, srcpath, outpath):
         noiseSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
 
     # log.debug('[{}] 噪声检测段：{}'.format(logRecord.name, noiseSegs))
-    # log.debug('[{}] 人声段：{}-{}'.format(logRecord.name, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point))
-    log.info('[%d/%d][%s] 采样点：%d，帧率：%d，位宽：%d，处理完毕，输出到：%s', no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, fullOutPath)
+    # log.debug('[{}] 人声段：{}-{}，修正人声段：{}-{}'.format(logRecord.name, \
+    #     logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
+    #     logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point))
+    log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，噪声检测段：%s，人声段：%d-%d，修正人声段：%d-%d，输出到：%s', \
+        no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, \
+        noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
+        logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point, fullOutPath)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])
     #     # print("offset:", offset, offset+n)

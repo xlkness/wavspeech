@@ -7,6 +7,7 @@ import queue
 import threading
 import signal
 from pathlib import Path
+import global_val
 
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
@@ -26,7 +27,6 @@ def files_name(file_dir):
             L = L + (files_name(dir))
     return L  
 
-log = logging.getLogger('null')
 fix_src_path = 'wav'
 path = os.path.join(rootPath, fix_src_path)
 outpath = os.path.join(rootPath, 'output')
@@ -35,16 +35,28 @@ try:
 except:
     pass
 
-log_record = open(os.path.join(outpath, 'process.log'), 'w')
+# log_record = open(os.path.join(outpath, 'process.log'), 'w')
 skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
 
-def init():
+class Log():
+    def __init__(self):
+        pass
+
+def __init__():
     level = logging.DEBUG # DEBUG/INFO/WARNING/ERROR/CRITICAL
     format='[%(levelname)s] %(asctime)s %(filename)s.%(funcName)s:%(lineno)d | %(message)s'
     format='[%(levelname)s][%(asctime)s][%(filename)s.%(funcName)s:%(lineno)d] %(message)s'
     datefmt='%Y%m%d%I%M%S'
+    logfile = os.path.join(outpath, 'process.log')
+    handler = logging.FileHandler(logfile, 'w', encoding="UTF-8")
     logging.basicConfig(level=level, format=format, datefmt=datefmt)
+    global log
     log = logging.getLogger("logger1")
+    log.addHandler(handler)
+    logging.debug('test logging')
+    log.debug('test log')
+    global_val.__init(log)
+    
 
 exitFlag = False
 
@@ -75,7 +87,7 @@ class handleFileThread(threading.Thread):
 # appdata\roaming\python\python36\site-packages\PyInstaller\__main__.py -F wavvad.spec -n wavvad
 # pipreqs . --encoding=utf8 --force
 if __name__ == '__main__':
-    init()
+    __init__()
     # path = 'wav/bad/344048.wav'
     # path = 'wav/good/1336482.wav'
     # path = 'wav/normal/335305.wav'
