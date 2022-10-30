@@ -9,8 +9,9 @@ import webrtcvad
 from halo import Halo
 import torch
 import torchaudio
+from IPython.display import Audio
 
-torchaudio.set_audio_backend("soundfile")
+# torch.set_num_threads(1)
 
 import vad.silerovad_utils as silerovad_utils
 import vad.silerovad as silerovad
@@ -20,9 +21,19 @@ from wavvad import  skip_record
 from global_val import log
 import copy
 
-model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+try:
+    # torch.set_num_threads(1)
+    torchaudio.set_audio_backend("soundfile")
+    # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+    #                                             model='silero_vad',
+    #                                             force_reload=True,
+    #                                             onnx=False)
     # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
-(get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
+except Exception as LoadErr:
+    print('加载数据集报错：', LoadErr)
+    os._exit(1)
+
+
 
 def vad_webrtc(path): 
     vad_frame_dura = 20 # vad算法检测一次的帧持续时长
@@ -65,11 +76,15 @@ def vad_webrtc(path):
 def vad_silero(path):
     USE_ONNX = False
 
+    # get speech timestamps from full audio file
+    model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+    # model1 = copy.deepcopy(model)
+    model1 = model
+    (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
+
     wav, raw_frames, sample_rate = read_audio(path)
 
-    # get speech timestamps from full audio file
-    model1 = copy.deepcopy(model)
-    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100, window_size_samples=int(1024/(16000/sample_rate)))
+    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100) #, min_speech_duration_ms=100, window_size_samples=int(1024/(16000/sample_rate)))
 
     speech_points = []
     for seg in speech_timestamps:

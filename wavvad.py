@@ -97,6 +97,7 @@ class handleFileThread(threading.Thread):
 # appdata\roaming\python\python36\site-packages\PyInstaller\__main__.py -F __main__.py -n wavvad
 # appdata\roaming\python\python36\site-packages\PyInstaller\__main__.py -F wavvad.spec -n wavvad
 # pipreqs . --encoding=utf8 --force
+# pyinstaller -F .\wavvad.spec --log-level WARN -c --noconfirm
 if __name__ == '__main__':
     init()
 
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     if len(wav_files) > cpu_count() * 2:
         log.info("文件数量{}过多，开启两倍cpu核心{}线程加速".format(len(wav_files), cpu_count()*2))
         threadsNum = cpu_count()*2
-        # threadsNum = 1
+        threadsNum = 1
   
     queueLock = threading.Lock()
     taskQueue = queue.Queue(len(wav_files))
