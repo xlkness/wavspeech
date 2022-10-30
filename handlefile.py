@@ -79,7 +79,7 @@ def vad_silero(path):
     return speech_points
 
 # 标记人声段
-def handle_file_extract_speech(path):
+def handle_file_extract_speech(path, webrtcCorrectSpeech):
     # 走webrtc算法提取出有效声音 [(point1, point2), (point3, point4)]
     speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = vad_webrtc(path)
 

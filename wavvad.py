@@ -105,7 +105,7 @@ class handleFileThread(threading.Thread):
 # pipreqs . --encoding=utf8 --force
 if __name__ == '__main__':
     configFile = 'properties.txt'
-    configFilePath = os.path.join(rootPath, configFile
+    configFilePath = os.path.join(rootPath, configFile)
 
     if Path(configFilePath).is_file():
         cf = configparser.ConfigParser(allow_no_value=True)
