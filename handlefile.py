@@ -117,45 +117,27 @@ def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
     origin_end_point = end_point
 
     i = 0
+    new_speech_sections1 = []
     while i < len(speech_sections1):
         (webrtc_seg_start, webrtc_seg_end) = speech_sections1[i]
-        if start_point > webrtc_seg_start and start_point < webrtc_seg_end:
-            if webrtcCorrectSpeech:
-                # 修正机器学习算法找到的人声区间，与webrtcvad保持一致，机器学习找前段会乱分割
-                start_point = webrtc_seg_start
+        if webrtc_seg_start >= start_point and webrtc_seg_end <= end_point: # 声音段处于人声段之间，不标记为噪声
+            continue
+        elif webrtc_seg_end >= start_point or webrtc_seg_start >= end_point: # 声音段处于人声段之外，标记为噪声
+            new_speech_sections1.append(speech_sections[i])
+            continue
+        else: # 声音段与人声段有重叠，按情况分割
+            if (start_point > webrtc_seg_start and start_point < webrtc_seg_end): # 人声开始点在声音段中
+                new_section = (speech_sections1[j][0], start_point) # 提取声音段开始-人声开始点为噪音
+            elif (end_point > webrtc_seg_start and end_point < webrtc_seg_end): # 人声结束点在声音段中
+                new_section = (end_point+1, speech_sections1[j][1]) # 提取人声结束点-声音段结束为噪音
             else:
-                tmp_speech_sections1 = []
-                j = 0
-                while j < len(speech_sections1):
-                    if i == j:
-                        tmp_speech_sections1.append((speech_sections1[j][0], start_point))
-                    else:
-                        tmp_speech_sections1.append(speech_sections1[j])
-                    j += 1
-                speech_sections1 = tmp_speech_sections1
-            break
-        i += 1
-    i = 0
-    while i < len(speech_sections1):
-        (webrtc_seg_start, webrtc_seg_end) = speech_sections1[i]
-        if end_point > webrtc_seg_start and end_point < webrtc_seg_end:
-            # start_point = webrtc_seg_start
-            # 修正webrtcvad算法找到的人声区间，与机器学习保持一致，webrtcvad算法找到的后段比较长
-            tmp_speech_sections1 = []
-            j = 0
-            while j < len(speech_sections1):
-                if i == j:
-                    tmp_speech_sections1.append((speech_sections1[j][0], end_point))
-                    tmp_speech_sections1.append((end_point+1, webrtc_seg_end))
-                else:
-                    tmp_speech_sections1.append(speech_sections1[j])
-                j += 1
-            speech_sections1 = tmp_speech_sections1
-            # end_point = webrtc_seg_end
-            break
+                raise '{}-{} {}-{}'.format(webrtc_seg_start, webrtc_seg_end, start_point, end_point)
+            new_speech_sections1.append(new_section)
+            continue
         i += 1
 
     processExtractSpeech = processSilerovadSpeechLogRecord(speech_sections2, origin_start_point, origin_end_point, start_point, end_point)
+    logRecord.addProcessVad(processWebrtcVadLogRecord(new_speech_sections1))
     logRecord.addExtractSpeech(processExtractSpeech)
 
     dura_ms = float(sample_points)/float(sample_rate/1000)
