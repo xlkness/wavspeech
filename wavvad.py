@@ -9,7 +9,7 @@ import signal
 from pathlib import Path
 import global_val
 import torch
-
+import configparser as configparser
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -45,8 +45,10 @@ except:
 # log_record = open(os.path.join(outpath, 'process.log'), 'w')
 skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
 
-def init():
+def init(log_level):
     level = logging.DEBUG # DEBUG/INFO/WARNING/ERROR/CRITICAL
+    if log_level == 'INFO':
+        level = logging.INFO
     format='[%(levelname)s] %(asctime)s %(filename)s.%(funcName)s:%(lineno)d | %(message)s'
     format='[%(levelname)s][%(asctime)s][%(filename)s.%(funcName)s:%(lineno)d] %(message)s'
     datefmt='%Y%m%d%I%M%S'
@@ -60,6 +62,11 @@ def init():
     global_val.__init(log)
     
 exitFlag = False
+retainDura = 650 # 除人声段外，前后保留的静音段时长（ms）
+
+# 是否使用webrtc检查出来的段修正机器学习得到的人声段，例如webrtc检测到100-1000为声音段，
+# 机器学习是200-800，则最后人声会被修正为100-800（修正前一部分，保留后一部分，测试到机器学习在前段有异常，后段比webrtc效果好些）
+webrtcCorrectSpeech = True
 
 class handleFileThread(threading.Thread):
     def __init__(self, queueLock, taskQueue, srcpath, outpath, count):
@@ -81,7 +88,7 @@ class handleFileThread(threading.Thread):
             if not self.taskQueue.empty():
                 (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                err_msg = handlefile.handle_file(model, utils, no, self.count, file, self.srcpath, self.outpath, 650, True)
+                err_msg = handlefile.handle_file(model, utils, no, self.count, file, self.srcpath, self.outpath, retainDura, webrtcCorrectSpeech)
                 if err_msg != '':
                     # 另存文件
                     f = open(file, 'rb')
@@ -103,7 +110,24 @@ class handleFileThread(threading.Thread):
 # pipreqs . --encoding=utf8 --force
 # pyinstaller -F .\wavvad.spec --log-level WARN -c --noconfirm
 if __name__ == '__main__':
-    init()
+    configFile = 'properties.txt'
+    configFilePath = os.path.join(rootPath, configFile)
+
+    if Path(configFilePath).is_file():
+        cf = configparser.ConfigParser(allow_no_value=True)
+        cf.add_section('default')
+        cf.set('default', 'retain_dura', str(retainDura))
+        cf.set('default', 'webrtc_correct_speech', str(webrtcCorrectSpeech))
+        cf.set('default', 'debug_level', 'DEBUG')
+        cf.read(configFilePath, encoding='utf=8')
+        kvs = dict(cf.items("default"))
+        dura = int(kvs['retain_dura'])
+        isCorrect = kvs['webrtc_correct_speech']
+        retainDura = dura
+        webrtcCorrectSpeech = isCorrect if isCorrect == 'True' else False
+        log_level =  kvs['debug_level']
+
+    init(log_level)
 
     startTime = time.time()
 
@@ -148,7 +172,7 @@ if __name__ == '__main__':
         for t in allThreads:
             t.join()
 
-        log.info("处理目录{}下文件数量{}个，输出目录：{}，总耗时：{:d}ms".format(path, len(wav_files), outpath, int((endTime-startTime)*1000)))
+        log.info("处理目录{}下文件数量{}个，输出目录：{}，静音段保留时长：{}ms，是否修正人声段：{}，总耗时：{:d}ms".format(path, len(wav_files), outpath, retainDura, webrtcCorrectSpeech, int((endTime-startTime)*1000)))
 
         time.sleep(5)
     except KeyboardInterrupt:

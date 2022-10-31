@@ -71,7 +71,7 @@ def vad_silero(path, model, utils):
     
     # get speech timestamps from full audio file
     model1 = model
-    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100, window_size_samples=int(1024/(16000/sample_rate)))
+    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100)
 
     speech_points = []
     for seg in speech_timestamps:
@@ -243,6 +243,7 @@ def handle_file_full_mute(raw_frames, sample_points, sample_rate, sample_width, 
     need_full_pre_frames, full_points, err_msg = \
         handle_file_full_common_mute(sample_rate, sample_width, start_point, raw_frames[:start_point*sample_width], raw_frames[end_point*sample_width:])
     if err_msg != '':
+        err_msg = '人声段：{}-{}，{}'.format(start_point, end_point, err_msg)
         return None, 0, 0, err_msg
     
 
@@ -300,7 +301,8 @@ class handleLogRecord:
         self.processExtractSpeech = processExtractSpeech
 
 # 开始处理一个文件
-def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura: int = 650, webrtcCorrectSpeech: bool = True):
+def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, webrtcCorrectSpeech):
+
     (filename, ext) = os.path.splitext(os.path.basename(path))
 
     start_time = time.time()
