@@ -8,6 +8,7 @@ import threading
 import signal
 from pathlib import Path
 import global_val
+import torch
 
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
@@ -70,14 +71,17 @@ class handleFileThread(threading.Thread):
         self.count = count
     def run(self):
         # log.debug("thread running...")
-        self.handle_file()
-    def handle_file(self):
+        model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+        # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
+        (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
+        self.handle_file(model, utils)
+    def handle_file(self, model, utils):
         while not exitFlag:
             self.queueLock.acquire()
             if not self.taskQueue.empty():
                 (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                err_msg = handlefile.handle_file(no, self.count, file, self.srcpath, self.outpath)
+                err_msg = handlefile.handle_file(model, utils, no, self.count, file, self.srcpath, self.outpath, 650, True)
                 if err_msg != '':
                     # 另存文件
                     f = open(file, 'rb')

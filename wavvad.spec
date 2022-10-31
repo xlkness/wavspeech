@@ -21,6 +21,17 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+for d in a.datas:
+    if '_C.cp36-win_amd64' in d[0]:
+        print('dep datas:', d[0])
+        a.datas.remove(d)
+    elif '_C.pyd' in d[0]:
+        print('deps1:', d[0])
+        a.datas.remove(d)
+    elif '_C_flatbuffer.py' in d[0]:
+        print('deps2:', d[0])
+        a.datas.remove(d)
+
 exe = EXE(
     pyz,
     a.scripts,
