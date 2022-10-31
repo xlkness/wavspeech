@@ -10,6 +10,7 @@ from pathlib import Path
 import global_val
 import torch
 import configparser as configparser
+
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -78,7 +79,7 @@ class handleFileThread(threading.Thread):
         self.count = count
     def run(self):
         # log.debug("thread running...")
-        model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+        model, utils = torch.hub.load(repo_or_dir=os.path.join(rootPath, 'vad'), model='silero_vad',source='local', onnx=False)
         # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
         (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
         self.handle_file(model, utils)
@@ -145,7 +146,7 @@ if __name__ == '__main__':
     if len(wav_files) > cpu_count() * 2:
         log.info("文件数量{}过多，开启两倍cpu核心{}线程加速".format(len(wav_files), cpu_count()*2))
         threadsNum = cpu_count()*2
-        threadsNum = 1
+        # threadsNum = 1
   
     queueLock = threading.Lock()
     taskQueue = queue.Queue(len(wav_files))

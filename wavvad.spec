@@ -3,12 +3,14 @@
 
 block_cipher = None
 
+lib_dir="H:/likun/study/python/virtualenv/audio_env/Lib/site-packages/"
+datas = [(lib_dir + "torch/lib", '.'),(lib_dir + "torchaudio/lib", '.')]
 
 a = Analysis(
     ['wavvad.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=datas,
     hiddenimports=['torch'],
     hookspath=[],
     hooksconfig={},

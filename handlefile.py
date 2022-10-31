@@ -72,7 +72,6 @@ def vad_silero(path, model, utils):
     # get speech timestamps from full audio file
     model1 = model
     speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100, window_size_samples=int(512/(16000/sample_rate)), visualize_probs=False)
-
     speech_points = []
     for seg in speech_timestamps:
         # log.debug("speech seg:", seg['start'], seg['end'])
