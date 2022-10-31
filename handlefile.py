@@ -71,7 +71,7 @@ def vad_silero(path, model, utils):
     
     # get speech timestamps from full audio file
     model1 = model
-    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100)
+    speech_timestamps = get_speech_timestamps(raw_frames, model1, sampling_rate=sample_rate, min_speech_duration_ms=100, window_size_samples=int(512/(16000/sample_rate)), visualize_probs=False)
 
     speech_points = []
     for seg in speech_timestamps:
@@ -116,28 +116,7 @@ def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
     origin_start_point = start_point
     origin_end_point = end_point
 
-    i = 0
-    new_speech_sections1 = []
-    while i < len(speech_sections1):
-        (webrtc_seg_start, webrtc_seg_end) = speech_sections1[i]
-        if webrtc_seg_start >= start_point and webrtc_seg_end <= end_point: # 声音段处于人声段之间，不标记为噪声
-            continue
-        elif webrtc_seg_end >= start_point or webrtc_seg_start >= end_point: # 声音段处于人声段之外，标记为噪声
-            new_speech_sections1.append(speech_sections[i])
-            continue
-        else: # 声音段与人声段有重叠，按情况分割
-            if (start_point > webrtc_seg_start and start_point < webrtc_seg_end): # 人声开始点在声音段中
-                new_section = (speech_sections1[j][0], start_point) # 提取声音段开始-人声开始点为噪音
-            elif (end_point > webrtc_seg_start and end_point < webrtc_seg_end): # 人声结束点在声音段中
-                new_section = (end_point+1, speech_sections1[j][1]) # 提取人声结束点-声音段结束为噪音
-            else:
-                raise '{}-{} {}-{}'.format(webrtc_seg_start, webrtc_seg_end, start_point, end_point)
-            new_speech_sections1.append(new_section)
-            continue
-        i += 1
-
     processExtractSpeech = processSilerovadSpeechLogRecord(speech_sections2, origin_start_point, origin_end_point, start_point, end_point)
-    logRecord.addProcessVad(processWebrtcVadLogRecord(new_speech_sections1))
     logRecord.addExtractSpeech(processExtractSpeech)
 
     dura_ms = float(sample_points)/float(sample_rate/1000)
@@ -155,14 +134,22 @@ def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
 # 标记噪声段
 def handle_file_extract_noise_point(start_point, end_point, speech_sections1):
     noise_sections = [] # 人声段之外的噪音
-    for seg in speech_sections1:
-        (tmp_start, tmp_end) = seg
-        if tmp_end < start_point :
-            # 当前段处于人声段之前，标记噪音
-            noise_sections.append(seg)
-        if tmp_start > end_point:
-            # 当前段处于人声段之后，标记噪音
-            noise_sections.append(seg)
+    i = 0
+    while i < len(speech_sections1):
+        (webrtc_seg_start, webrtc_seg_end) = speech_sections1[i]
+        if webrtc_seg_start >= start_point and webrtc_seg_end <= end_point: # 声音段处于人声段之间，不标记为噪声
+            pass
+        elif webrtc_seg_end <= start_point or webrtc_seg_start >= end_point: # 声音段处于人声段之外，标记为噪声
+            noise_sections.append(speech_sections1[i])
+        else: # 声音段与人声段有重叠，按情况分割
+            if (start_point > webrtc_seg_start and start_point < webrtc_seg_end): # 人声开始点在声音段中
+                new_section = (speech_sections1[i][0], start_point) # 提取声音段开始-人声开始点为噪音
+            elif (end_point > webrtc_seg_start and end_point < webrtc_seg_end): # 人声结束点在声音段中
+                new_section = (end_point+1, speech_sections1[i][1]) # 提取人声结束点-声音段结束为噪音
+            else:
+                raise '{}-{} {}-{}'.format(webrtc_seg_start, webrtc_seg_end, start_point, end_point)
+            noise_sections.append(new_section)
+        i += 1
     return noise_sections
 
 # 去掉噪点
@@ -179,7 +166,7 @@ def handle_file_denoise(raw_frames, sample_points, sample_rate, sample_width, st
         new_frames.extend(raw_frames[cut_end_point*sample_width:noise_sp*sample_width])
         cut_end_point = noise_ep
         record_noise_points += noise_ep - noise_sp
-        if noise_ep < start_point:
+        if noise_ep <= start_point:
             record_pre_noise_points += noise_ep - noise_sp
         i += 1
     new_frames.extend(raw_frames[cut_end_point*sample_width:])
@@ -225,7 +212,7 @@ def handle_file_full_mute(raw_frames, sample_points, sample_rate, sample_width, 
     need_full_pre_frames, full_points, err_msg = \
         handle_file_full_common_mute(sample_rate, sample_width, start_point, raw_frames[:start_point*sample_width], raw_frames[end_point*sample_width:])
     if err_msg != '':
-        err_msg = '人声段：{}-{}，{}'.format(start_point, end_point, err_msg)
+        err_msg = '去掉噪点后采样点数：{}，人声段：{}-{}，{}'.format(sample_points, start_point, end_point, err_msg)
         return None, 0, 0, err_msg
     
 
@@ -294,17 +281,11 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
     raw_frames, sample_points, sample_rate, sample_width = logRecord.raw_frames, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width
     if err_msg != '':
         msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
-        print(msg)
+        log().warn(msg)
         skip_record.write(path + '：' + msg + '\n')
         return msg
 
     start_point, end_point = logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point
-    # (start_point, end_point, start_ts, end_ts), active_voicd_sections, err_msg = handle_file_extract_speech(path)
-    if err_msg != '':
-        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
-        print(msg)
-        skip_record.write(path + '：' + msg + '\n')
-        return msg
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-speech-0"+ext, bytes(raw_frames[start_point*sample_width:end_point*sample_width]), sample_rate, sample_width)
 
@@ -313,7 +294,6 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
 
     # 去掉噪音段
     new_raw_frames, new_start_point, new_end_point = handle_file_denoise(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, noise_sections)
-
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-1"+ext, bytes(new_raw_frames), sample_rate, sample_width)
 
     # print("原始采样点数：", sample_points)
@@ -325,9 +305,17 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
     new_raw_frames, new_start_point, new_end_point, err_msg = \
         handle_file_full_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
     if err_msg != '':
-        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
-        print(msg)
-        skip_record.write(path + '：' + msg + '\n')
+        noiseOriginSegs = ''
+        for noiseSeg in logRecord.processVad.voicedlist:
+            noiseOriginSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
+
+        noiseSegs = ''
+        for noiseSeg in noise_sections:
+            noiseSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
+        msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，原始噪声检测段：{}，修正噪声检测段：{}，人声段：{}-{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, 
+        noiseOriginSegs, noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, err_msg)
+        log().warn(msg)
+        skip_record.write(msg + '\n')
         return msg
 
     # webrtcvad_utils.write_wave(outpath+"/"+filename+"-denoise-2"+ext, bytes(new_raw_frames), sample_rate, sample_width)
@@ -358,17 +346,21 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
         pass
     webrtcvad_utils.write_wave(fullOutPath, bytes(new_raw_frames), sample_rate, sample_width)
 
-    noiseSegs = ''
+    noiseOriginSegs = ''
     for noiseSeg in logRecord.processVad.voicedlist:
+        noiseOriginSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
+    
+    noiseSegs = ''
+    for noiseSeg in noise_sections:
         noiseSegs += '{}-{},'.format(noiseSeg[0], noiseSeg[1])
 
     # log.debug('[{}] 噪声检测段：{}'.format(logRecord.name, noiseSegs))
     # log.debug('[{}] 人声段：{}-{}，修正人声段：{}-{}'.format(logRecord.name, \
     #     logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
     #     logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point))
-    log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，噪声检测段：%s，人声段：%d-%d，修正人声段：%d-%d，输出到：%s', \
+    log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，原始噪声检测段：%s，修正噪声检测段：%s，人声段：%d-%d，修正人声段：%d-%d，输出到：%s', \
         no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, \
-        noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
+        noiseOriginSegs, noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
         logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point, fullOutPath)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])

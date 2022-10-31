@@ -43,7 +43,7 @@ except:
     pass
 
 # log_record = open(os.path.join(outpath, 'process.log'), 'w')
-skip_record = open(os.path.join(outpath, 'skip_records.txt'), 'w')
+skip_record = open(os.path.join(skippath, 'skip_records.txt'), 'w', encoding='UTF-8')
 
 def init(log_level):
     level = logging.DEBUG # DEBUG/INFO/WARNING/ERROR/CRITICAL
