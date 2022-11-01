@@ -15,4 +15,6 @@ python3.7:
 
 4.打包
 pyinstaller wavvad.spec或者pyinstaller -F wavvad.py
-注意：wavvad.spec不要随意改动、覆盖，因为里面datas打包了依赖库，以及去除了多余打包的库防止运行报警告
+注意：
+* wavvad.spec不要随意改动、覆盖，因为里面datas打包了依赖库，以及去除了多余打包的库防止运行报警告。
+* 运行exe报错，一般都是no such operator torchaudio::xxx，屏蔽torch依赖库的那些代码即可，filtering.py module_utils.py
