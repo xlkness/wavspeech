@@ -4,7 +4,7 @@ import os, sys
 parentdir = os.path.dirname(os.path.abspath(__file__))#跨目录调用
 
 print('下载pyannota模型文件，缓存目录{}'.format(os.path.join(parentdir, "vad")))
-pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="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", cache_dir=os.path.join(parentdir, "vad"))
+pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="..", cache_dir=os.path.join(parentdir, "vad"))
 
 def vad_annota(path, samples, rate):
     diarization = pipeline(path)
