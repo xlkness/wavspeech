@@ -1,4 +1,8 @@
 import logging
+
+import torchaudio
+torchaudio.set_audio_backend("soundfile")
+
 import handlefile
 from multiprocessing import cpu_count
 import sys,os
@@ -10,8 +14,11 @@ from pathlib import Path
 import global_val
 import torch
 import configparser as configparser
+
 # rootPath = os.path.dirname(os.path.abspath(__file__))
 rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
+
+
 
 #获取输入文件夹内的所有wav文件，并返回文件名全称列表
 def files_name(file_dir):

@@ -19,6 +19,8 @@ import time
 from wavvad import  skip_record 
 from global_val import log
 import copy
+import vad.annota_vad as annota_vad
+import vad.audiokits_vad as audiokits_vad
 
 # model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
     # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
@@ -82,8 +84,12 @@ def vad_silero(path, model, utils):
 
 # 标记人声段
 def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
+    useMultiRate = True
     # 走webrtc算法提取出有效声音 [(point1, point2), (point3, point4)]
-    speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = vad_webrtc(path)
+    if useMultiRate:
+        speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = audiokits_vad.vad(path)
+    else:
+        speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = vad_webrtc(path)
 
     logRecord = handleLogRecord(path, raw_frames, sample_points, sample_rate, sample_width)
     logRecord.addProcessVad(processWebrtcVadLogRecord(speech_sections1))
@@ -98,7 +104,10 @@ def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
         return logRecord, err_msg
 
     # 走silero机器学习计算有效人声段 [(point1, point2)]
-    speech_sections2 = vad_silero(path, model, utils)
+    if useMultiRate:
+        speech_sections2 = annota_vad.vad_annota(path, sample_points, sample_rate)
+    else:
+        speech_sections2 = vad_silero(path, model, utils)
 
     if len(speech_sections2) <= 0:
         err_msg = '机器学习算法没有提取到有效人声'
