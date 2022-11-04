@@ -76,18 +76,21 @@ retainDura = 650 # 除人声段外，前后保留的静音段时长（ms）
 webrtcCorrectSpeech = True
 
 class handleFileThread(threading.Thread):
-    def __init__(self, queueLock, taskQueue, srcpath, outpath, count):
+    def __init__(self, queueLock, taskQueue, srcpath, outpath, count, useMultiRate):
         threading.Thread.__init__(self)
         self.queueLock = queueLock
         self.taskQueue = taskQueue
         self.srcpath = srcpath
         self.outpath = outpath
         self.count = count
+        self.useMultiRate = useMultiRate
     def run(self):
         # log.debug("thread running...")
-        model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
-        # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
-        (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
+        model, utils = None, None
+        if not self.useMultiRate:
+            model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
+            # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
+            (get_speech_timestamps, save_audio, read_audio, VADIterator, collect_chunks) = utils
         self.handle_file(model, utils)
     def handle_file(self, model, utils):
         while not exitFlag:
@@ -95,7 +98,7 @@ class handleFileThread(threading.Thread):
             if not self.taskQueue.empty():
                 (no, file) = self.taskQueue.get()
                 self.queueLock.release()
-                err_msg = handlefile.handle_file(model, utils, no, self.count, file, self.srcpath, self.outpath, retainDura, webrtcCorrectSpeech)
+                err_msg = handlefile.handle_file(model, utils, no, self.count, file, self.srcpath, self.outpath, retainDura, webrtcCorrectSpeech, self.useMultiRate)
                 if err_msg != '':
                     # 另存文件
                     f = open(file, 'rb')
@@ -119,6 +122,8 @@ class handleFileThread(threading.Thread):
 if __name__ == '__main__':
     configFile = 'properties.txt'
     configFilePath = os.path.join(rootPath, configFile)
+
+    useMultiRate = True
 
     if Path(configFilePath).is_file():
         cf = configparser.ConfigParser(allow_no_value=True)
@@ -166,7 +171,7 @@ if __name__ == '__main__':
 
     allThreads = []
     for i in range(threadsNum):
-        thread = handleFileThread(queueLock, taskQueue, path, outpath, len(wav_files))
+        thread = handleFileThread(queueLock, taskQueue, path, outpath, len(wav_files), useMultiRate)
         thread.start()
         allThreads.append(thread)
 

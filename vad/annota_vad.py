@@ -1,10 +1,15 @@
 from pyannote.audio import Pipeline
 import os, sys
+import rich
 
 parentdir = os.path.dirname(os.path.abspath(__file__))#跨目录调用
 
+import torchaudio
+torchaudio.set_audio_backend("soundfile")
+
 print('下载pyannota模型文件，缓存目录{}'.format(os.path.join(parentdir, "vad")))
-pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="..", cache_dir=os.path.join(parentdir, "vad"))
+pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="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", cache_dir=os.path.join(parentdir, "vad"))
+print('下载pyannote模型完毕')
 
 def vad_annota(path, samples, rate):
     diarization = pipeline(path)

@@ -83,8 +83,8 @@ def vad_silero(path, model, utils):
     return speech_points
 
 # 标记人声段
-def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils):
-    useMultiRate = True
+def handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils, useMultiRate):
+    # useMultiRate = True
     # 走webrtc算法提取出有效声音 [(point1, point2), (point3, point4)]
     if useMultiRate:
         speech_sections1, sample_points, sample_rate, sample_width, raw_frames, err_msg = audiokits_vad.vad(path)
@@ -279,14 +279,14 @@ class handleLogRecord:
         self.processExtractSpeech = processExtractSpeech
 
 # 开始处理一个文件
-def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, webrtcCorrectSpeech):
+def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, webrtcCorrectSpeech, useMultiRate):
 
     (filename, ext) = os.path.splitext(os.path.basename(path))
 
     start_time = time.time()
     
     # 计算有效人声段
-    logRecord, err_msg = handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils)
+    logRecord, err_msg = handle_file_extract_speech(path, webrtcCorrectSpeech, model, utils, useMultiRate)
     raw_frames, sample_points, sample_rate, sample_width = logRecord.raw_frames, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width
     if err_msg != '':
         msg = "[{}] 采样点：{}，帧率：{}，位宽：{}，遇到错误跳过：{}".format(path, sample_points, sample_rate, sample_width, err_msg)
