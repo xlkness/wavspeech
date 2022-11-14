@@ -1,11 +1,19 @@
 import logging
+import sys,os
+
+# rootPath = os.path.dirname(os.path.abspath(__file__))
+rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
+
+# 设置huggingface的下载缓存地址
+os.environ['HUGGINGFACE_HUB_CACHE'] = os.path.join(rootPath, 'vad/huggingface-cache')
+os.environ['PYANNOTE_CACHE'] = os.path.join(rootPath, 'vad/pyannote-cache')
 
 import torchaudio
 torchaudio.set_audio_backend("soundfile")
 
 import handlefile
 from multiprocessing import cpu_count
-import sys,os
+
 import time
 import queue
 import threading
@@ -14,11 +22,6 @@ from pathlib import Path
 import global_val
 import torch
 import configparser as configparser
-
-# rootPath = os.path.dirname(os.path.abspath(__file__))
-rootPath = os.path.dirname(os.path.realpath(sys.argv[0]))
-
-
 
 #获取输入文件夹内的所有wav文件，并返回文件名全称列表
 def files_name(file_dir):
@@ -125,12 +128,14 @@ if __name__ == '__main__':
 
     useMultiRate = True
 
+    log_level = "DEBUG"
+    
     if Path(configFilePath).is_file():
         cf = configparser.ConfigParser(allow_no_value=True)
         cf.add_section('default')
         cf.set('default', 'retain_dura', str(retainDura))
         cf.set('default', 'webrtc_correct_speech', str(webrtcCorrectSpeech))
-        cf.set('default', 'debug_level', 'DEBUG')
+        cf.set('default', 'debug_level', log_level)
         cf.read(configFilePath, encoding='utf=8')
         kvs = dict(cf.items("default"))
         dura = int(kvs['retain_dura'])

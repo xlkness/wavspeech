@@ -21,6 +21,7 @@ from global_val import log
 import copy
 import vad.annota_vad as annota_vad
 import vad.audiokits_vad as audiokits_vad
+import vad.audiokits_vad1 as audiokits_vad1
 
 # model, utils = torch.hub.load(repo_or_dir='vad',model='silero_vad',source='local', onnx=False)
     # model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',model='silero_vad', onnx=USE_ONNX)
@@ -192,13 +193,16 @@ def handle_file_full_common_mute(sample_rate, sample_width, mute_points, prefer_
     total_need_full_points = sample_rate*full_seconds
     
     need_full_frames = []
+    use_which_section = 0
     if mute_points < total_need_full_points:
         # 需要补足
         template_frames = []
         if len(prefer_select_template_frames1) > 0:
             template_frames = prefer_select_template_frames1
+            use_which_section = 1
         elif len(prefer_select_template_frames2) > 0:
             template_frames = prefer_select_template_frames2
+            use_which_section = 2
         else:
             err_msg = '人声段前后都找不到静音段补充'
             return None, 0, err_msg
@@ -214,18 +218,18 @@ def handle_file_full_common_mute(sample_rate, sample_width, mute_points, prefer_
                 need_full_frames.extend(template_frames[:template_length*sample_width].copy())
                 need_points_count -= template_length
     
-    return need_full_frames, int(len(need_full_frames)/sample_width), ''
+    return need_full_frames, int(len(need_full_frames)/sample_width), use_which_section, ''
 
 # 人声段前后填充xx秒的静音段
 def handle_file_full_mute(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point):
-    need_full_pre_frames, full_points, err_msg = \
+    need_full_pre_frames, full_points, use_which_section1, err_msg = \
         handle_file_full_common_mute(sample_rate, sample_width, start_point, raw_frames[:start_point*sample_width], raw_frames[end_point*sample_width:])
     if err_msg != '':
         err_msg = '去掉噪点后采样点数：{}，人声段：{}-{}，{}'.format(sample_points, start_point, end_point, err_msg)
         return None, 0, 0, err_msg
     
 
-    need_full_post_frames, _, err_msg = \
+    need_full_post_frames, _, use_which_section2, err_msg = \
         handle_file_full_common_mute(sample_rate, sample_width, sample_points - end_point, raw_frames[end_point*sample_width:], raw_frames[:start_point*sample_width])
     if err_msg != '':
         return None, 0, 0, err_msg
@@ -234,7 +238,7 @@ def handle_file_full_mute(raw_frames, sample_points, sample_rate, sample_width, 
     raw_frames = need_full_pre_frames
     raw_frames.extend(need_full_post_frames)
 
-    return raw_frames, start_point+full_points, end_point+full_points, ''
+    return raw_frames, start_point+full_points, end_point+full_points, use_which_section1, use_which_section2, ''
 
 # 处理人声段前后多余的静音段，保留xx毫秒
 def handle_file_cut_more_mute(raw_frames, sample_points, sample_rate, sample_width, start_point, end_point, retainDura):
@@ -311,7 +315,7 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
     # print("新人声终点：", new_end_point)
 
     # 人声段之外填充静音段
-    new_raw_frames, new_start_point, new_end_point, err_msg = \
+    new_raw_frames, new_start_point, new_end_point, use_which_section1, use_which_section2, err_msg = \
         handle_file_full_mute(new_raw_frames, int(len(new_raw_frames)/sample_width), sample_rate, sample_width, new_start_point, new_end_point)
     if err_msg != '':
         noiseOriginSegs = ''
@@ -367,10 +371,31 @@ def handle_file(model, utils, no, count, path, srcpath, outpath, retainDura, web
     # log.debug('[{}] 人声段：{}-{}，修正人声段：{}-{}'.format(logRecord.name, \
     #     logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
     #     logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point))
-    log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，原始噪声检测段：%s，修正噪声检测段：%s，人声段：%d-%d，修正人声段：%d-%d，输出到：%s', \
+    # log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，原始噪声检测段：%s，修正噪声检测段：%s，人声段：%d-%d，修正人声段：%d-%d，输出到：%s', \
+    #     no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, \
+    #     noiseOriginSegs, noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
+    #     logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point, fullOutPath)
+
+    full_pre = ''
+    if use_which_section1 == 0:
+        full_pre = '前段不用补足'
+    elif use_which_section1 == 1:
+        full_pre = '前段用前段补足'
+    else:
+        full_pre = '前段用后段补足'
+
+    full_post = ''
+    if use_which_section2 == 0:
+        full_post = '后段不用补足'
+    elif use_which_section2 == 1:
+        full_post = '后段用后段补足'
+    else:
+        full_post = '后段用前段补足'
+    
+    log().info('[%d/%d][%s] 采样点：%d，帧率：%d*%d，原始噪声检测段：%s，修正噪声检测段：%s，人声段：%d-%d，%s，%s，输出到：%s', \
         no, count, logRecord.name, logRecord.sample_points, logRecord.sample_rate, logRecord.sample_width, \
         noiseOriginSegs, noiseSegs, logRecord.processExtractSpeech.origin_start_point, logRecord.processExtractSpeech.origin_end_point, \
-        logRecord.processExtractSpeech.correct_start_point, logRecord.processExtractSpeech.correct_end_point, fullOutPath)
+        full_pre, full_post, fullOutPath)
     # while offset + n < len(new_raw_frames):
     #     frame = bytes(new_raw_frames[offset:offset + n])
     #     # print("offset:", offset, offset+n)

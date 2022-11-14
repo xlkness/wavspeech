@@ -5,3 +5,6 @@ dist
 __pycache__
 dist.rar
 skip
+vad/vad
+vad/huggingface-cache
+vad/pyannote-cache

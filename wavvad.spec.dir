@@ -4,11 +4,19 @@
 block_cipher = None
 
 lib_dir="H:/likun/study/python/virtualenv/audio_env_37/Lib/site-packages/"
-datas = [(lib_dir, '.')]
-    #(lib_dir + "torchaudio/lib", '.'),
-    #(lib_dir + "librosa/util", 'librosa/util'),
-    #(lib_dir + "pyannote", 'pyannote'),
-    #(lib_dir + "singledispatchmethod*", '.')]
+stdlib_dir="C:/Program Files/Python38/Lib/"
+datas = [(lib_dir + "torchaudio/lib", '.'),
+    (lib_dir + "librosa/util", 'librosa/util'),
+    (lib_dir + "speechbrain", 'speechbrain'),
+    (lib_dir + "pyannote", 'pyannote'),
+    (lib_dir + "asteroid_filterbanks", 'asteroid_filterbanks'),
+    (lib_dir + "pytorch_lightning", 'pytorch_lightning'),
+    (lib_dir + "pytorch_metric_learning", 'pytorch_metric_learning'),
+    (lib_dir + "tqdm", 'tqdm'),
+    (lib_dir + "ruamel", 'ruamel'),
+    (lib_dir + "hyperpyyaml", 'hyperpyyaml'),
+    (stdlib_dir + "logging", 'logging'),
+    (lib_dir + "singledispatchmethod*", '.')]
 
 a = Analysis(
     ['wavvad.py'],
